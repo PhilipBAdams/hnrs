@@ -4,16 +4,30 @@ extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
 extern crate chrono;
-extern crate url;
-extern crate url_serde;
+extern crate html2text;
 
-use url::{Url,};
-use serde_json::Value;
 use chrono::prelude::*;
 use chrono::serde::ts_seconds;
+use chrono::Duration;
+use chrono::DateTime;
+use html2text::from_read;
 
+static TEXT_COLS : usize = 120;
 
+fn format_date(date : DateTime<Utc>) -> String {
+    let time_difference = Utc::now().signed_duration_since(date);
+    assert!(Duration::minutes(1) < time_difference);
 
+    match time_difference.num_minutes() {
+        m if m < 3 => String::from("just now"),
+        3...60 => format!("{} minutes ago", time_difference.num_minutes()),
+        60 ...360 => format!("{} hours and {} minutes ago", time_difference.num_hours(), (time_difference - Duration::hours(time_difference.num_hours())).num_minutes()),
+        360 ... 1440 => format!("{} hours ago", time_difference.num_hours()),
+        1440 ... 14400 => format!("{} days ago", time_difference.num_days()),
+        14400 ... 100800 => format!("{} weeks ago", time_difference.num_weeks()),
+        _ => format!("on {}", date.format("%B %e, %Y").to_string()),
+    }
+}
 
 #[derive(Deserialize, Debug)]
 enum ItemType {
@@ -42,8 +56,7 @@ struct Item {
     kids : Vec<u32>,
     score : Option<u32>,
     title : Option<String>,
-    //#[serde(deserialize_with = "url_serde", default)]
-    //url : Option<Url>,
+    url : Option<String>,
     descendants : Option<u32>,
     parent : Option<u32>,
     parts : Option<Vec<u32>>,
@@ -58,15 +71,35 @@ struct Item {
 }
 
 fn main() {
-    println!("{}", get_item(8863));
-    println!("{}", get_item(2921983));
-    println!("{}", get_item(121003));
-    println!("{}", get_item(192327));
-    println!("{}", get_item(126809));
-    println!("{}", get_item(160705));
+    println!("{:?}", get_item(8863).unwrap());
+    println!("{:?}", get_item(2921983).unwrap());
+    println!("{:?}", get_item(121003).unwrap());
+    println!("{:?}", get_item(192327).unwrap());
+    println!("{:?}", get_item(126809).unwrap());
+    println!("{:?}", get_item(160705).unwrap());
+    println!("{}", render_compact(get_item(8863).unwrap()));
+
+    let best = reqwest::get("https://hacker-news.firebaseio.com/v0/beststories.json");
+
+    match best {
+        Ok(mut best) => {
+            let text = &best.text().unwrap();
+            let bestids : Vec<u32> = serde_json::from_str(text).unwrap();
+            println!("{:?}", bestids);
+            for i, id in bestids {
+                println!("{}", render_compact(get_item(id).unwrap()));
+            }
+        }
+        _ => ()
+    }
+
+    
+    
 }
 
-fn get_item(id: u32) -> String {
+
+
+fn get_item(id: u32) -> Result<Item,String> {
     let url = format!("https://hacker-news.firebaseio.com/v0/item/{}.json", id);
     let res = reqwest::get(&url);
     match res {
@@ -74,14 +107,22 @@ fn get_item(id: u32) -> String {
             if res.status().is_success() {
                 let text = &res.text().unwrap();
                 let item : Item = serde_json::from_str(text).unwrap();
-
-                format!("{:?}", item)
+                
+                Ok(item)
             } else {
-                format!("Error while parsing url.\nRecieved {}", res.status())
+                Err(format!("Error while parsing url.\nRecieved {}", res.status()))
             }
         },
         Err(_) => {
-            format!("Failed to parse URL")
+            Err(format!("Failed to parse URL"))
         }
     }
+}
+
+fn render_text(text : &str) -> String {
+    from_read(text.as_bytes(), TEXT_COLS)
+}
+
+fn render_compact(item : Item) -> String {
+    format!("{}\n by {} {}", item.title.unwrap(), item.by, format_date(item.time))
 }
