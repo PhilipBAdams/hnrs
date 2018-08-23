@@ -46,9 +46,14 @@ fn default_kids() -> Vec<u32> {
     Vec::new()
 }
 
+fn default_empty_string() -> String {
+    String::new()
+}
+
 #[derive(Deserialize, Debug)]
 struct Item {
     id : u32,
+    #[serde(default = "default_empty_string")]
     by : String,
     #[serde(with = "ts_seconds")]
     time : DateTime<Utc>,
@@ -97,7 +102,7 @@ fn main() {
     }
 
     println!("{}", render_full(&get_item(8863).unwrap()));
-    
+    println!("{}", render_full(&get_item(126809).unwrap()));
 }
 
 
@@ -147,6 +152,7 @@ fn render_full(item : &Item) -> String {
     match item.item_type {
         ItemType::story | ItemType::job => out.push_str(&format!("{}\n", render_compact(item))),
         ItemType::poll => {
+            out.push_str(&format!("{}\n", render_compact(item)));
             match item.parts {
                 Some(ref parts) => {
                     for opt in parts {
