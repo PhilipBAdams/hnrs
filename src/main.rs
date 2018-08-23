@@ -86,8 +86,11 @@ fn main() {
             let text = &best.text().unwrap();
             let bestids : Vec<u32> = serde_json::from_str(text).unwrap();
             println!("{:?}", bestids);
-            for i, id in bestids {
-                println!("{}", render_compact(get_item(id).unwrap()));
+            for (i, id) in bestids.iter().enumerate() {
+                println!("{}", render_compact(get_item(*id).unwrap()));
+                if i > 25 {
+                    break
+                }
             }
         }
         _ => ()
